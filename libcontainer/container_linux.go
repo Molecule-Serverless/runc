@@ -140,6 +140,9 @@ type Container interface {
 	// errors:
 	// Systemerror - System error.
 	NotifyMemoryPressure(level PressureLevel) (<-chan struct{}, error)
+
+	// GetCgroupsManager return a cgroups.Manager
+	GetCgroupsManager() *cgroups.Manager
 }
 
 // ID returns the container's unique ID
@@ -675,6 +678,10 @@ func (c *linuxContainer) NotifyMemoryPressure(level PressureLevel) (<-chan struc
 		logrus.Warn("getting memory pressure notifications may fail if you don't have the full access to cgroups")
 	}
 	return notifyMemoryPressure(c.cgroupManager.Path("memory"), level)
+}
+
+func (c *linuxContainer) GetCgroupsManager() *cgroups.Manager {
+	return &c.cgroupManager
 }
 
 var criuFeatures *criurpc.CriuFeatures
