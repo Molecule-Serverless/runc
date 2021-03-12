@@ -52,17 +52,35 @@ var forkCommand = cli.Command{
 		if err != nil {
 			return err
 		}
-		fmt.Println(pid)
-		fmt.Println("begin applying cgroups")
+		// fmt.Println(pid)
+		// fmt.Println("begin applying cgroups")
+
 		err = (*cgroupsManager).Apply(pid)
 		if err != nil {
 			return err
 		}
+
+		err = (*newLinuxContainer).InitializeFakeContainer(pid)
+		if err != nil {
+			return err
+		}
+
 		config := (*newLinuxContainer).Config()
 		err = (*newLinuxContainer).Set(config)
 		if err != nil {
 			return err
 		}
+
+		/*newContainerState, err := (*newLinuxContainer).State()
+		if err != nil {
+			return err
+		}
+		if newContainerStateString, err := json.Marshal(newContainerState); err == nil {
+			fmt.Println(string(newContainerStateString))
+		} else {
+			return err
+		}*/
+
 		return nil
 	},
 }

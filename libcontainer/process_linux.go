@@ -674,3 +674,57 @@ func (p *Process) InitializeIO(rootuid, rootgid int) (i *IO, err error) {
 	}
 	return i, nil
 }
+
+type fakeProcess struct {
+	processID int
+}
+
+func (p *fakeProcess) pid() int {
+	return p.processID
+}
+
+func (p *fakeProcess) start() error {
+	return nil
+}
+
+func (p *fakeProcess) terminate() error {
+	// TODO
+	return nil
+}
+
+func (p *fakeProcess) wait() (*os.ProcessState, error) {
+	// TODO
+	return nil, nil
+}
+
+func (p *fakeProcess) startTime() (uint64, error) {
+	stat, err := system.Stat(p.pid())
+	return stat.StartTime, err
+}
+
+func (p *fakeProcess) signal(sig os.Signal) error {
+	s, ok := sig.(unix.Signal)
+	if !ok {
+		return errors.New("os: unsupported signal type")
+	}
+	return unix.Kill(p.pid(), s)
+}
+
+func (p *fakeProcess) externalDescriptors() []string {
+	// TODO
+	return nil
+}
+
+func (p *fakeProcess) setExternalDescriptors(fds []string) {
+	// TODO
+	return
+}
+
+func (p *fakeProcess) forwardChildLogs() {
+	// TODO
+	return
+}
+
+func (p *fakeProcess) SetFakeProcessID(pid int) {
+	p.processID = pid
+}

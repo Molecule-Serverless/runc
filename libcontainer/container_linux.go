@@ -143,6 +143,9 @@ type Container interface {
 
 	// GetCgroupsManager return a cgroups.Manager
 	GetCgroupsManager() *cgroups.Manager
+
+	// InitializeFakeContainer uses a running process's pid to initialize the data structure
+	InitializeFakeContainer(pid int) error
 }
 
 // ID returns the container's unique ID
@@ -682,6 +685,21 @@ func (c *linuxContainer) NotifyMemoryPressure(level PressureLevel) (<-chan struc
 
 func (c *linuxContainer) GetCgroupsManager() *cgroups.Manager {
 	return &c.cgroupManager
+}
+
+func (c *linuxContainer) InitializeFakeContainer(pid int) error {
+	if c.initProcess != nil {
+		return nil
+	}
+	init := &fakeProcess{}
+	init.processID = pid
+	c.initProcess = init
+	initProcessStartTime, err := init.startTime()
+	if err != nil {
+		return err
+	}
+	c.initProcessStartTime = initProcessStartTime
+	return nil
 }
 
 var criuFeatures *criurpc.CriuFeatures
@@ -1845,6 +1863,7 @@ func (c *linuxContainer) runType() Status {
 	pid := c.initProcess.pid()
 	stat, err := system.Stat(pid)
 	if err != nil {
+		logrus.Error(err)
 		return Stopped
 	}
 	if stat.StartTime != c.initProcessStartTime || stat.State == system.Zombie || stat.State == system.Dead {
