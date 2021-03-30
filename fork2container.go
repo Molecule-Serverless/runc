@@ -67,6 +67,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 	"unsafe"
 
 	securejoin "github.com/cyphar/filepath-securejoin"
@@ -97,6 +98,8 @@ var fork2ContainerCommand = cli.Command{
 		},
 	},
 	Action: func(context *cli.Context) error {
+		start := time.Now().UnixNano()
+		chpt := []int64{}
 		targetContainerID := context.String("target")
 		if targetContainerID == "" {
 			return errors.New("target container not specified")
@@ -133,6 +136,8 @@ var fork2ContainerCommand = cli.Command{
 			return errors.New("container state is nil")
 		}
 		// fmt.Println(targetContainerState.InitProcessPid)
+
+		chpt = append(chpt, (time.Now().UnixNano() - start))
 
 		// Open required namespace fds
 		utsNamespace := "/proc/" + fmt.Sprint(targetContainerState.InitProcessPid) + "/ns/uts"
@@ -177,20 +182,32 @@ var fork2ContainerCommand = cli.Command{
 		zygoteContainerForkSocketPath, err := securejoin.SecureJoin(zygoteContainerBundle, forkSocketPath)
 		// fmt.Println(zygoteContainerForkSocketPath)
 
+		chpt = append(chpt, (time.Now().UnixNano() - start))
+
 		// Send the fds to the socket
 		pid, err := invokeMultipleFDs(zygoteContainerForkSocketPath, targetContainerRootfsFd, utsNamespaceFd, pidNamespaceFd, ipcNamespaceFd, mntNamespaceFd)
 		if err != nil {
 			return err
 		}
+
+		chpt = append(chpt, (time.Now().UnixNano() - start))
+
 		// fmt.Println(pid)
 		// t0 := time.Now().UnixNano()
 		err = (*targetCgroupManager).Apply(pid)
 		if err != nil {
 			return err
 		}
+
+		chpt = append(chpt, (time.Now().UnixNano() - start))
 		// t1 := time.Now().UnixNano()
 		// fmt.Println(pid, " after applying the cgroups")
 		// fmt.Println(t1 - t0)
+
+		for _, e := range chpt {
+			fmt.Printf("%d ", e)
+		}
+		fmt.Println()
 		return nil
 	},
 }
