@@ -3,10 +3,12 @@ package utils
 import (
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 	"unsafe"
 
 	"golang.org/x/sys/unix"
@@ -120,4 +122,10 @@ func Annotations(labels []string) (bundle string, userAnnotations map[string]str
 		}
 	}
 	return
+}
+
+func UtilsPrintfLiu(format string, fun string, file string, a ...interface{}) {
+	timeNow := time.Now().UnixNano()
+	newFormat := fmt.Sprintf("[liu@%s, %s, %d,%06d] %s\n", fun, file, timeNow/1e6, timeNow%1e6, format)
+	fmt.Printf(newFormat, a...)
 }

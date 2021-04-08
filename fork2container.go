@@ -99,6 +99,7 @@ var fork2ContainerCommand = cli.Command{
 	},
 	Action: func(context *cli.Context) error {
 		start := time.Now().UnixNano()
+		utils.UtilsPrintfLiu("start fork", "", "")
 		chpt := []int64{}
 		targetContainerID := context.String("target")
 		if targetContainerID == "" {
@@ -112,11 +113,15 @@ var fork2ContainerCommand = cli.Command{
 		if forkSocketPath == "" {
 			return errors.New("fork socket not specified")
 		}
+		utils.UtilsPrintfLiu("before find target container id", "", "")
+
 		targetContainer, err := getContainerByID(context, targetContainerID)
+		utils.UtilsPrintfLiu("find target container id", "", "")
 		if err != nil {
 			return err
 		}
 		zygoteContainer, err := getContainerByID(context, zygoteContainerID)
+
 		if err != nil {
 			return err
 		}
@@ -136,7 +141,7 @@ var fork2ContainerCommand = cli.Command{
 			return errors.New("container state is nil")
 		}
 		// fmt.Println(targetContainerState.InitProcessPid)
-
+		utils.UtilsPrintfLiu("find containers by ids\n", "", "")
 		chpt = append(chpt, (time.Now().UnixNano() - start))
 
 		// Open required namespace fds
@@ -208,6 +213,7 @@ var fork2ContainerCommand = cli.Command{
 			fmt.Printf("%d ", e)
 		}
 		fmt.Println()
+		utils.UtilsPrintfLiu("fork complete", "", "")
 		return nil
 	},
 }

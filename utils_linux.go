@@ -68,11 +68,20 @@ func loadFactory(context *cli.Context) (libcontainer.Factory, error) {
 	if err != nil {
 		newgidmap = ""
 	}
+	utils.UtilsPrintfLiu("before create new factory", "", "")
+	criuPath := libcontainer.CriuPath(context.GlobalString("criu"))
+	utils.UtilsPrintfLiu("after find criuPath", "", "")
+
+	uidmapPath := libcontainer.NewuidmapPath(newuidmap)
+	utils.UtilsPrintfLiu("after utidmapPath", "", "")
+
+	gidmapPath := libcontainer.NewgidmapPath(newgidmap)
+	utils.UtilsPrintfLiu("after gtidmapPath", "", "")
 
 	return libcontainer.New(abs, cgroupManager, intelRdtManager,
-		libcontainer.CriuPath(context.GlobalString("criu")),
-		libcontainer.NewuidmapPath(newuidmap),
-		libcontainer.NewgidmapPath(newgidmap))
+		criuPath,
+		uidmapPath,
+		gidmapPath)
 }
 
 // getContainer returns the specified container instance by loading it from state
@@ -93,7 +102,9 @@ func getContainerByID(context *cli.Context, id string) (libcontainer.Container, 
 	if id == "" {
 		return nil, errEmptyID
 	}
+	utils.UtilsPrintfLiu("before load factory", "", "")
 	factory, err := loadFactory(context)
+	utils.UtilsPrintfLiu("load factory finish", "", "")
 	if err != nil {
 		return nil, err
 	}
