@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"time"
 
 	"github.com/opencontainers/runc/libcontainer/cgroups"
 	"github.com/opencontainers/runc/libcontainer/cgroups/fscommon"
@@ -217,7 +216,7 @@ func (m *manager) Apply(pid int) (err error) {
 	}
 
 	for _, sys := range subsystems {
-		t0 := time.Now().UnixNano()
+		// t0 := time.Now().UnixNano()
 		p, err := d.path(sys.Name())
 		if err != nil {
 			// The non-presence of the devices subsystem is
@@ -240,8 +239,8 @@ func (m *manager) Apply(pid int) (err error) {
 			}
 			return err
 		}
-		t1 := time.Now().UnixNano()
-		fmt.Printf("%s: %dns\n", sys.Name(), t1-t0)
+		// t1 := time.Now().UnixNano()
+		// fmt.Printf("%s: %dns\n", sys.Name(), t1-t0)
 	}
 	return nil
 }
