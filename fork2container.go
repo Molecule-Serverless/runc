@@ -67,7 +67,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"time"
 	"unsafe"
 
 	securejoin "github.com/cyphar/filepath-securejoin"
@@ -98,122 +97,24 @@ var fork2ContainerCommand = cli.Command{
 		},
 	},
 	Action: func(context *cli.Context) error {
-		start := time.Now().UnixNano()
-		utils.UtilsPrintfLiu("start fork", "", "")
-		chpt := []int64{}
-		targetContainerID := context.String("target")
-		if targetContainerID == "" {
-			return errors.New("target container not specified")
+		endpointContainerID := context.String("target")
+		if endpointContainerID == "" {
+			return errors.New("template container not specified")
 		}
-		zygoteContainerID := context.String("zygote")
-		if zygoteContainerID == "" {
-			return errors.New("zygote container not specified")
+		templateContainerID := context.String("zygote")
+		if templateContainerID == "" {
+			return errors.New("endpoint container not specified")
 		}
 		forkSocketPath := context.String("fork-socket")
 		if forkSocketPath == "" {
 			return errors.New("fork socket not specified")
 		}
-		utils.UtilsPrintfLiu("before find target container id", "", "")
-
-		targetContainer, err := getContainerByID(context, targetContainerID)
-		utils.UtilsPrintfLiu("find target container id", "", "")
+		err := doFork(context, templateContainerID, endpointContainerID, forkSocketPath)
 		if err != nil {
-			return err
-		}
-		zygoteContainer, err := getContainerByID(context, zygoteContainerID)
-
-		if err != nil {
-			return err
-		}
-		targetCgroupManager := targetContainer.GetCgroupsManager()
-		if targetCgroupManager == nil {
-			return errors.New("cgroups manager is nil")
-		}
-		targetContainerState, err := targetContainer.State()
-		if err != nil {
-			return err
-		}
-		zygoteContainerState, err := zygoteContainer.State()
-		if err != nil {
-			return err
-		}
-		if targetContainerState == nil {
-			return errors.New("container state is nil")
-		}
-		// fmt.Println(targetContainerState.InitProcessPid)
-		utils.UtilsPrintfLiu("find containers by ids\n", "", "")
-		chpt = append(chpt, (time.Now().UnixNano() - start))
-
-		// Open required namespace fds
-		utsNamespace := "/proc/" + fmt.Sprint(targetContainerState.InitProcessPid) + "/ns/uts"
-		pidNamespace := "/proc/" + fmt.Sprint(targetContainerState.InitProcessPid) + "/ns/pid"
-		ipcNamespace := "/proc/" + fmt.Sprint(targetContainerState.InitProcessPid) + "/ns/ipc"
-		mntNamespace := "/proc/" + fmt.Sprint(targetContainerState.InitProcessPid) + "/ns/mnt"
-		utsNamespaceFd, err := os.Open(utsNamespace)
-		if err != nil {
-			return err
-		}
-		defer utsNamespaceFd.Close()
-		pidNamespaceFd, err := os.Open(pidNamespace)
-		if err != nil {
-			return err
-		}
-		defer pidNamespaceFd.Close()
-		ipcNamespaceFd, err := os.Open(ipcNamespace)
-		if err != nil {
-			return err
-		}
-		defer ipcNamespaceFd.Close()
-		mntNamespaceFd, err := os.Open(mntNamespace)
-		if err != nil {
-			return err
-		}
-		defer mntNamespaceFd.Close()
-
-		targetContainerBundle, _ := utils.Annotations(targetContainerState.Config.Labels)
-		targetContainerRootfs, err := securejoin.SecureJoin(targetContainerBundle, "rootfs")
-		if err != nil {
-			return err
-		}
-		// fmt.Println(targetContainerRootfs)
-		targetContainerRootfsFd, err := os.Open(targetContainerRootfs)
-		if err != nil {
-			return err
-		}
-		defer targetContainerRootfsFd.Close()
-
-		// Find the path to the zygote container fork socket
-		zygoteContainerBundle, _ := utils.Annotations(zygoteContainerState.Config.Labels)
-		zygoteContainerForkSocketPath, err := securejoin.SecureJoin(zygoteContainerBundle, forkSocketPath)
-		// fmt.Println(zygoteContainerForkSocketPath)
-
-		chpt = append(chpt, (time.Now().UnixNano() - start))
-
-		// Send the fds to the socket
-		pid, err := invokeMultipleFDs(zygoteContainerForkSocketPath, targetContainerRootfsFd, utsNamespaceFd, pidNamespaceFd, ipcNamespaceFd, mntNamespaceFd)
-		if err != nil {
+			fmt.Printf("error: %s\n", err)
 			return err
 		}
 
-		chpt = append(chpt, (time.Now().UnixNano() - start))
-
-		// fmt.Println(pid)
-		// t0 := time.Now().UnixNano()
-		err = (*targetCgroupManager).Apply(pid)
-		if err != nil {
-			return err
-		}
-
-		chpt = append(chpt, (time.Now().UnixNano() - start))
-		// t1 := time.Now().UnixNano()
-		// fmt.Println(pid, " after applying the cgroups")
-		// fmt.Println(t1 - t0)
-
-		for _, e := range chpt {
-			fmt.Printf("%d ", e)
-		}
-		fmt.Println()
-		utils.UtilsPrintfLiu("fork complete", "", "")
 		return nil
 	},
 }
@@ -226,4 +127,96 @@ func invokeMultipleFDs(socketPath string, rootDir *os.File, utsNamespaceFd *os.F
 		return -1, err
 	}
 	return int(pid), nil
+}
+
+func doFork(context *cli.Context, zygoteContainerID string, targetContainerID string, forkSocketPath string) error {
+	utils.UtilsPrintfLiu("start fork", "", "")
+	// utils.UtilsPrintfLiu("before find target container id", "", "")
+
+	targetContainer, err := getContainerByID(context, targetContainerID)
+	// utils.UtilsPrintfLiu("find target container id", "", "")
+	if err != nil {
+		return err
+	}
+	zygoteContainer, err := getContainerByID(context, zygoteContainerID)
+
+	if err != nil {
+		return err
+	}
+	targetCgroupManager := targetContainer.GetCgroupsManager()
+	if targetCgroupManager == nil {
+		return errors.New("cgroups manager is nil")
+	}
+	targetContainerState, err := targetContainer.State()
+	if err != nil {
+		return err
+	}
+	zygoteContainerState, err := zygoteContainer.State()
+	if err != nil {
+		return err
+	}
+	if targetContainerState == nil {
+		return errors.New("container state is nil")
+	}
+	// fmt.Println(targetContainerState.InitProcessPid)
+	// utils.UtilsPrintfLiu("find containers by ids", "", "")
+
+	// Open required namespace fds
+	utsNamespace := "/proc/" + fmt.Sprint(targetContainerState.InitProcessPid) + "/ns/uts"
+	pidNamespace := "/proc/" + fmt.Sprint(targetContainerState.InitProcessPid) + "/ns/pid"
+	ipcNamespace := "/proc/" + fmt.Sprint(targetContainerState.InitProcessPid) + "/ns/ipc"
+	mntNamespace := "/proc/" + fmt.Sprint(targetContainerState.InitProcessPid) + "/ns/mnt"
+	utsNamespaceFd, err := os.Open(utsNamespace)
+	if err != nil {
+		return err
+	}
+	defer utsNamespaceFd.Close()
+	pidNamespaceFd, err := os.Open(pidNamespace)
+	if err != nil {
+		return err
+	}
+	defer pidNamespaceFd.Close()
+	ipcNamespaceFd, err := os.Open(ipcNamespace)
+	if err != nil {
+		return err
+	}
+	defer ipcNamespaceFd.Close()
+	mntNamespaceFd, err := os.Open(mntNamespace)
+	if err != nil {
+		return err
+	}
+	defer mntNamespaceFd.Close()
+	targetContainerBundle, _ := utils.Annotations(targetContainerState.Config.Labels)
+	targetContainerRootfs, err := securejoin.SecureJoin(targetContainerBundle, "rootfs")
+	if err != nil {
+		return err
+	}
+	// fmt.Println(targetContainerRootfs)
+	targetContainerRootfsFd, err := os.Open(targetContainerRootfs)
+	if err != nil {
+		return err
+	}
+	defer targetContainerRootfsFd.Close()
+
+	// Find the path to the zygote container fork socket
+	zygoteContainerBundle, _ := utils.Annotations(zygoteContainerState.Config.Labels)
+	zygoteContainerForkSocketPath, err := securejoin.SecureJoin(zygoteContainerBundle, forkSocketPath)
+	if err != nil {
+		return err
+	}
+	// Send the fds to the socket
+	pid, err := invokeMultipleFDs(zygoteContainerForkSocketPath, targetContainerRootfsFd, utsNamespaceFd, pidNamespaceFd, ipcNamespaceFd, mntNamespaceFd)
+	if err != nil {
+		return err
+	}
+
+	err = (*targetCgroupManager).Apply(pid)
+	if err != nil {
+		return err
+	}
+	utils.UtilsPrintfLiu("Apply cgroup to endpoint container", "", "")
+
+	fmt.Println()
+	utils.UtilsPrintfLiu("fork complete", "", "")
+	return nil
 }

@@ -70,13 +70,13 @@ func loadFactory(context *cli.Context) (libcontainer.Factory, error) {
 	}
 	utils.UtilsPrintfLiu("before create new factory", "", "")
 	criuPath := libcontainer.CriuPath(context.GlobalString("criu"))
-	utils.UtilsPrintfLiu("after find criuPath", "", "")
+	// utils.UtilsPrintfLiu("after find criuPath", "", "")
 
 	uidmapPath := libcontainer.NewuidmapPath(newuidmap)
-	utils.UtilsPrintfLiu("after utidmapPath", "", "")
+	// utils.UtilsPrintfLiu("after utidmapPath", "", "")
 
 	gidmapPath := libcontainer.NewgidmapPath(newgidmap)
-	utils.UtilsPrintfLiu("after gtidmapPath", "", "")
+	// utils.UtilsPrintfLiu("after gtidmapPath", "", "")
 
 	return libcontainer.New(abs, cgroupManager, intelRdtManager,
 		criuPath,
@@ -102,9 +102,9 @@ func getContainerByID(context *cli.Context, id string) (libcontainer.Container, 
 	if id == "" {
 		return nil, errEmptyID
 	}
-	utils.UtilsPrintfLiu("before load factory", "", "")
+	// utils.UtilsPrintfLiu("before load factory", "", "")
 	factory, err := loadFactory(context)
-	utils.UtilsPrintfLiu("load factory finish", "", "")
+	// utils.UtilsPrintfLiu("load factory finish", "", "")
 	if err != nil {
 		return nil, err
 	}
@@ -427,6 +427,60 @@ func startContainer(context *cli.Context, spec *specs.Spec, action CtAct, criuOp
 		return -1, errEmptyID
 	}
 
+	notifySocket := newNotifySocket(context, os.Getenv("NOTIFY_SOCKET"), id)
+	if notifySocket != nil {
+		if err := notifySocket.setupSpec(context, spec); err != nil {
+			return -1, err
+		}
+	}
+
+	container, err := createContainer(context, id, spec)
+	if err != nil {
+		return -1, err
+	}
+
+	if notifySocket != nil {
+		if err := notifySocket.setupSocketDirectory(); err != nil {
+			return -1, err
+		}
+		if action == CT_ACT_RUN {
+			if err := notifySocket.bindSocket(); err != nil {
+				return -1, err
+			}
+		}
+	}
+
+	// Support on-demand socket activation by passing file descriptors into the container init process.
+	listenFDs := []*os.File{}
+	if os.Getenv("LISTEN_FDS") != "" {
+		listenFDs = activation.Files(false)
+	}
+
+	logLevel := "info"
+	if context.GlobalBool("debug") {
+		logLevel = "debug"
+	}
+
+	r := &runner{
+		enableSubreaper: !context.Bool("no-subreaper"),
+		shouldDestroy:   true,
+		container:       container,
+		listenFDs:       listenFDs,
+		notifySocket:    notifySocket,
+		consoleSocket:   context.String("console-socket"),
+		detach:          context.Bool("detach"),
+		pidFile:         context.String("pid-file"),
+		preserveFDs:     context.Int("preserve-fds"),
+		action:          action,
+		criuOpts:        criuOpts,
+		init:            true,
+		logLevel:        logLevel,
+	}
+	return r.run(spec.Process)
+}
+
+//[liu]
+func startContainerWithID(context *cli.Context, id string, spec *specs.Spec, action CtAct, criuOpts *libcontainer.CriuOpts) (int, error) {
 	notifySocket := newNotifySocket(context, os.Getenv("NOTIFY_SOCKET"), id)
 	if notifySocket != nil {
 		if err := notifySocket.setupSpec(context, spec); err != nil {
