@@ -122,6 +122,7 @@ var fork2ContainerCommand = cli.Command{
 func invokeMultipleFDs(socketPath string, rootDir *os.File, utsNamespaceFd *os.File, pidNamespaceFd *os.File, ipcNamespaceFd *os.File, mntNamespaceFd *os.File) (int, error) {
 	cSock := C.CString(socketPath)
 	defer C.free(unsafe.Pointer(cSock))
+	utils.UtilsPrintfLiu("before send multiple fds", "", "")
 	pid, err := C.sendMultipleFDs(cSock, C.int(rootDir.Fd()), C.int(utsNamespaceFd.Fd()), C.int(pidNamespaceFd.Fd()), C.int(ipcNamespaceFd.Fd()), C.int(mntNamespaceFd.Fd()))
 	if err != nil {
 		return -1, err
@@ -138,6 +139,7 @@ func doFork(context *cli.Context, zygoteContainerID string, targetContainerID st
 	if err != nil {
 		return err
 	}
+	// Nodejs test comment
 	zygoteContainer, err := getContainerByID(context, zygoteContainerID)
 
 	if err != nil {
@@ -151,10 +153,12 @@ func doFork(context *cli.Context, zygoteContainerID string, targetContainerID st
 	if err != nil {
 		return err
 	}
+	// Nodejs test comment
 	zygoteContainerState, err := zygoteContainer.State()
 	if err != nil {
 		return err
 	}
+
 	if targetContainerState == nil {
 		return errors.New("container state is nil")
 	}
@@ -162,10 +166,16 @@ func doFork(context *cli.Context, zygoteContainerID string, targetContainerID st
 	// utils.UtilsPrintfLiu("find containers by ids", "", "")
 
 	// Open required namespace fds
+	// Nodejs test comment
 	utsNamespace := "/proc/" + fmt.Sprint(targetContainerState.InitProcessPid) + "/ns/uts"
 	pidNamespace := "/proc/" + fmt.Sprint(targetContainerState.InitProcessPid) + "/ns/pid"
 	ipcNamespace := "/proc/" + fmt.Sprint(targetContainerState.InitProcessPid) + "/ns/ipc"
 	mntNamespace := "/proc/" + fmt.Sprint(targetContainerState.InitProcessPid) + "/ns/mnt"
+	// utsNamespace := "/home/liu/molecule/node/fork-test/testfile/" + "1.txt"
+	// pidNamespace := "/home/liu/molecule/node/fork-test/testfile/" + "2.txt"
+	// ipcNamespace := "/home/liu/molecule/node/fork-test/testfile/" + "3.txt"
+	// mntNamespace := "/home/liu/molecule/node/fork-test/testfile/" + "4.txt"
+
 	utsNamespaceFd, err := os.Open(utsNamespace)
 	if err != nil {
 		return err
@@ -199,22 +209,25 @@ func doFork(context *cli.Context, zygoteContainerID string, targetContainerID st
 	defer targetContainerRootfsFd.Close()
 
 	// Find the path to the zygote container fork socket
+	// Nodejs test comment
 	zygoteContainerBundle, _ := utils.Annotations(zygoteContainerState.Config.Labels)
 	zygoteContainerForkSocketPath, err := securejoin.SecureJoin(zygoteContainerBundle, forkSocketPath)
 	if err != nil {
 		return err
 	}
+	// zygoteContainerForkSocketPath := "/home/liu/molecule/node/fork-test/fork.sock"
 	// Send the fds to the socket
 	pid, err := invokeMultipleFDs(zygoteContainerForkSocketPath, targetContainerRootfsFd, utsNamespaceFd, pidNamespaceFd, ipcNamespaceFd, mntNamespaceFd)
 	if err != nil {
 		return err
 	}
 
+	// Nodejs test comment
 	err = (*targetCgroupManager).Apply(pid)
 	if err != nil {
 		return err
 	}
-	utils.UtilsPrintfLiu("Apply cgroup to endpoint container", "", "")
+	utils.UtilsPrintfLiu("Apply cgroup to endpoint container, pid: %d", "", "", pid)
 
 	fmt.Println()
 	utils.UtilsPrintfLiu("fork complete", "", "")
